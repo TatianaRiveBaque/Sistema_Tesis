@@ -1,14 +1,14 @@
 FROM node:18-alpine
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files from frontend directory
+COPY frontend/package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy source code
-COPY . .
+# Copy frontend source code
+COPY frontend/ .
 
 # Build for production
 RUN npm run build
@@ -20,4 +20,4 @@ RUN npm install -g serve
 EXPOSE 3000
 
 # Serve the application with SPA fallback
-CMD ["serve", "-s", "dist", "-l", "3000", "--single"]
+CMD ["sh", "-c", "serve -s dist -l ${PORT:-3000} --single"]
