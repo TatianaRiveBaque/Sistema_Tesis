@@ -3,7 +3,7 @@ let currentPatient = null;
 let selectedFile = null;
 
 // URL del backend
-const API_URL = process.env.VITE_API_URL || 'https://tu-backend.onrender.com';
+const API_URL = 'https://tu-backend.onrender.com'; // ← URL real de Render
 // Función para buscar paciente
 async function searchPatient() {
     const cedula = document.getElementById('cedula-input').value.trim();
