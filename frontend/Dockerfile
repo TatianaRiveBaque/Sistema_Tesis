@@ -1,7 +1,23 @@
-FROM nginx:alpine
+FROM node:18-alpine
+WORKDIR /app
 
-COPY . /usr/share/nginx/html/
+# Copy package files
+COPY package*.json ./
 
-EXPOSE 80
+# Install dependencies
+RUN npm install
 
-CMD ["nginx", "-g", "daemon off;"]
+# Copy source code
+COPY . .
+
+# Build for production
+RUN npm run build
+
+# Install serve globally
+RUN npm install -g serve
+
+# Expose port
+EXPOSE 3000
+
+# Serve the application with SPA fallback
+CMD ["serve", "-s", "dist", "-l", "3000", "--single"]
