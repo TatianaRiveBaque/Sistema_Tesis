@@ -1,23 +1,27 @@
-FROM node:18-alpine
-WORKDIR /app
+FROM nginx:alpine
 
-# Copy package files
-COPY package*.json ./
+# Copy all frontend files to nginx html directory
+COPY . /usr/share/nginx/html/
 
-# Install dependencies
-RUN npm install
+# Copy a custom nginx configuration for SPA
+COPY <<EOF /etc/nginx/conf.d/default.conf
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
 
-# Copy source code
-COPY . .
+    # Handle client-side routing
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
 
-# Build for production
-RUN npm run build
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+}
+EOF
 
-# Install serve globally
-RUN npm install -g serve
-
-# Expose port
-EXPOSE 3000
-
-# Serve the application with SPA fallback
-CMD ["sh", "-c", "serve -s dist -l ${PORT:-3000} --single"]
+EXPOSE 80
+EOF
