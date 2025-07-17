@@ -10,13 +10,59 @@ import numpy as np
 from PIL import Image
 import io
 import json
+import hashlib
+import secrets
+from datetime import datetime, timedelta
+from jose import JWTError, jwt
+
+# JWT Configuration
+SECRET_KEY = "your-secret-key-here-change-in-production"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+class Doctor(BaseModel):
+    username: str
+    email: str
+    full_name: str
+    hashed_password: str
+
+class DoctorCreate(BaseModel):
+    username: str
+    email: str
+    full_name: str
+    password: str
+
+class DoctorLogin(BaseModel):
+    username: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
 
 class Patient(BaseModel):
-    cedula: str
-    nombre_completo: str
-    edad: int
-    tipo_sangre: str
-    antecedentes: str = ""
+    apellido_paterno: str
+    apellido_materno: str
+    nombre: str
+    fecha_nacimiento: str
+    sexo: str
+    estado_civil: str
+    tipo_documento: str
+    numero_documento: str
+    direccion: str = ""
+    telefono: str = ""
+    email: str = ""
+    ocupacion: str = ""
+    persona_responsable: str = ""
+    alergias: str = ""
+    intervenciones_quirurgicas: str = ""
+    vacunas_completas: str = ""
+    antecedentes_familiares_cancer: str = ""
+    fecha_ultimo_examen: str = ""
+    edad: Optional[int] = None
+    tipo_cancer: str = ""
+    etapa: str = ""
+    ultima_consulta: str = ""
 
 class PredictionResponse(BaseModel):
     filename: str
@@ -25,6 +71,7 @@ class PredictionResponse(BaseModel):
     has_cancer: bool
     confidence_percentage: float
     message: str
+    etapa_cancer: Optional[str] = None
 
 app = FastAPI(
     title="API de Predicción de Cáncer de Mama",
@@ -40,8 +87,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory storage for patients (in production, use a database)
+# In-memory storage (in production, use a database)
 patients_db = {}
+doctors_db = {}
+
+# Helper functions for authentication
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return hash_password(plain_password) == hashed_password
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def get_current_doctor(token: str = Depends(lambda: None)):
+    if not token:
+        raise HTTPException(status_code=401, detail="Token required")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def calculate_age(birth_date: str) -> int:
+    try:
+        birth = datetime.strptime(birth_date, "%Y-%m-%d")
+        today = datetime.now()
+        return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+    except:
+        return 0
+
+def get_cancer_stage(confidence_percentage: float, has_cancer: bool) -> str:
+    if not has_cancer:
+        return ""
+    
+    if confidence_percentage <= 25:
+        return "Etapa I (Temprano)"
+    elif confidence_percentage <= 50:
+        return "Etapa II (Localizado)"
+    elif confidence_percentage <= 75:
+        return "Etapa III (Avanzado)"
+    else:
+        return "Etapa IV (Metastásico)"
 
 # Define el tamaño de imagen esperado por el modelo
 # Basado en el `input_layer_3` con forma (None, 50, 50, 3) en tu notebook
@@ -87,13 +185,39 @@ def preprocess_image(img_file: UploadFile, img_size: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al procesar la imagen: {e}")
 
-# Initialize with a sample patient
-patients_db["12345678"] = Patient(
-    cedula="12345678",
-    nombre_completo="María González",
+# Initialize with sample data
+sample_patient = Patient(
+    apellido_paterno="González",
+    apellido_materno="Pérez",
+    nombre="María",
+    fecha_nacimiento="1978-05-15",
+    sexo="Femenino",
+    estado_civil="Casado",
+    tipo_documento="DNI",
+    numero_documento="12345678",
+    direccion="Av. Principal 123",
+    telefono="987654321",
+    email="maria.gonzalez@email.com",
+    ocupacion="Docente",
+    persona_responsable="Juan González",
+    alergias="Ninguna",
+    intervenciones_quirurgicas="Ninguna",
+    vacunas_completas="Si",
+    antecedentes_familiares_cancer="Sin antecedentes familiares de cáncer",
+    fecha_ultimo_examen="2024-01-15",
     edad=45,
-    tipo_sangre="O+",
-    antecedentes="Sin antecedentes familiares de cáncer"
+    tipo_cancer="",
+    etapa="",
+    ultima_consulta="2024-01-15"
+)
+patients_db["12345678"] = sample_patient
+
+# Initialize with a sample doctor
+doctors_db["admin"] = Doctor(
+    username="admin",
+    email="admin@hospital.com",
+    full_name="Dr. Admin",
+    hashed_password=hash_password("admin123")
 )
 
 @app.get("/")
@@ -103,46 +227,170 @@ async def read_root():
     """
     return {"message": "API de Predicción de Cáncer de Mama funcionando! Envía una imagen a /predict."}
 
+# Authentication endpoints
+@app.post("/auth/register", response_model=Token)
+async def register_doctor(doctor: DoctorCreate):
+    """Registra un nuevo doctor"""
+    if doctor.username in doctors_db:
+        raise HTTPException(status_code=400, detail="Doctor ya existe")
+    
+    new_doctor = Doctor(
+        username=doctor.username,
+        email=doctor.email,
+        full_name=doctor.full_name,
+        hashed_password=hash_password(doctor.password)
+    )
+    doctors_db[doctor.username] = new_doctor
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": doctor.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/auth/login", response_model=Token)
+async def login_doctor(doctor: DoctorLogin):
+    """Inicia sesión de doctor"""
+    if doctor.username not in doctors_db:
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    
+    stored_doctor = doctors_db[doctor.username]
+    if not verify_password(doctor.password, stored_doctor.hashed_password):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": doctor.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.get("/patients", response_model=List[Patient])
 async def list_patients():
     """Lista todos los pacientes"""
-    return list(patients_db.values())
+    patients = list(patients_db.values())
+    for patient in patients:
+        if patient.fecha_nacimiento and not patient.edad:
+            patient.edad = calculate_age(patient.fecha_nacimiento)
+    return patients
 
 @app.post("/patients", response_model=Patient)
 async def create_patient(patient: Patient):
     """Crea un nuevo paciente"""
-    if patient.cedula in patients_db:
+    if patient.numero_documento in patients_db:
         raise HTTPException(status_code=400, detail="Paciente ya existe")
-    patients_db[patient.cedula] = patient
+    
+    # Calculate age from birth date
+    if patient.fecha_nacimiento:
+        patient.edad = calculate_age(patient.fecha_nacimiento)
+    
+    # Set current date as last consultation
+    patient.ultima_consulta = datetime.now().strftime("%Y-%m-%d")
+    
+    patients_db[patient.numero_documento] = patient
     return patient
 
-@app.get("/patients/{cedula}", response_model=Patient)
-async def get_patient(cedula: str):
-    """Obtiene un paciente por cédula"""
-    if cedula not in patients_db:
+@app.get("/patients/{numero_documento}", response_model=Patient)
+async def get_patient(numero_documento: str):
+    """Obtiene un paciente por número de documento"""
+    if numero_documento not in patients_db:
         raise HTTPException(status_code=404, detail="Paciente no encontrado")
-    return patients_db[cedula]
+    
+    patient = patients_db[numero_documento]
+    if patient.fecha_nacimiento and not patient.edad:
+        patient.edad = calculate_age(patient.fecha_nacimiento)
+    
+    return patient
 
-@app.delete("/patients/{cedula}")
-async def delete_patient(cedula: str):
+@app.delete("/patients/{numero_documento}")
+async def delete_patient(numero_documento: str):
     """Elimina un paciente"""
-    if cedula not in patients_db:
+    if numero_documento not in patients_db:
         raise HTTPException(status_code=404, detail="Paciente no encontrado")
-    del patients_db[cedula]
+    del patients_db[numero_documento]
     return {"message": "Paciente eliminado exitosamente"}
 
-@app.post("/patients/sample")
-async def create_sample_patient():
-    """Crea un paciente genérico de muestra"""
-    sample_patient = Patient(
-        cedula="87654321",
-        nombre_completo="Ana Pérez",
-        edad=38,
-        tipo_sangre="A+",
-        antecedentes="Madre con historial de cáncer de mama"
-    )
-    patients_db[sample_patient.cedula] = sample_patient
-    return sample_patient
+@app.post("/api/createuserfordoctorgeneric")
+async def create_sample_patients():
+    """Crea 10 pacientes genéricos para testing"""
+    sample_patients = [
+        {
+            "apellido_paterno": "García", "apellido_materno": "López", "nombre": "Ana",
+            "fecha_nacimiento": "1985-03-12", "sexo": "Femenino", "estado_civil": "Soltero",
+            "tipo_documento": "DNI", "numero_documento": "11111111", "direccion": "Calle 1 #123",
+            "telefono": "111111111", "email": "ana.garcia@email.com", "ocupacion": "Enfermera"
+        },
+        {
+            "apellido_paterno": "Rodríguez", "apellido_materno": "Martín", "nombre": "Carmen",
+            "fecha_nacimiento": "1978-07-22", "sexo": "Femenino", "estado_civil": "Casado",
+            "tipo_documento": "DNI", "numero_documento": "22222222", "direccion": "Av. 2 #456",
+            "telefono": "222222222", "email": "carmen.rodriguez@email.com", "ocupacion": "Profesora"
+        },
+        {
+            "apellido_paterno": "Hernández", "apellido_materno": "Ruiz", "nombre": "Elena",
+            "fecha_nacimiento": "1990-11-08", "sexo": "Femenino", "estado_civil": "Soltero",
+            "tipo_documento": "DNI", "numero_documento": "33333333", "direccion": "Jr. 3 #789",
+            "telefono": "333333333", "email": "elena.hernandez@email.com", "ocupacion": "Ingeniera"
+        },
+        {
+            "apellido_paterno": "Jiménez", "apellido_materno": "Moreno", "nombre": "Isabel",
+            "fecha_nacimiento": "1982-01-15", "sexo": "Femenino", "estado_civil": "Divorciado",
+            "tipo_documento": "DNI", "numero_documento": "44444444", "direccion": "Calle 4 #012",
+            "telefono": "444444444", "email": "isabel.jimenez@email.com", "ocupacion": "Abogada"
+        },
+        {
+            "apellido_paterno": "Muñoz", "apellido_materno": "Álvarez", "nombre": "Laura",
+            "fecha_nacimiento": "1975-09-30", "sexo": "Femenino", "estado_civil": "Casado",
+            "tipo_documento": "DNI", "numero_documento": "55555555", "direccion": "Av. 5 #345",
+            "telefono": "555555555", "email": "laura.munoz@email.com", "ocupacion": "Médica"
+        },
+        {
+            "apellido_paterno": "Sánchez", "apellido_materno": "Gómez", "nombre": "Marta",
+            "fecha_nacimiento": "1988-04-18", "sexo": "Femenino", "estado_civil": "Soltero",
+            "tipo_documento": "DNI", "numero_documento": "66666666", "direccion": "Jr. 6 #678",
+            "telefono": "666666666", "email": "marta.sanchez@email.com", "ocupacion": "Psicóloga"
+        },
+        {
+            "apellido_paterno": "Díaz", "apellido_materno": "Fernández", "nombre": "Patricia",
+            "fecha_nacimiento": "1979-12-05", "sexo": "Femenino", "estado_civil": "Viudo",
+            "tipo_documento": "DNI", "numero_documento": "77777777", "direccion": "Calle 7 #901",
+            "telefono": "777777777", "email": "patricia.diaz@email.com", "ocupacion": "Contadora"
+        },
+        {
+            "apellido_paterno": "Vázquez", "apellido_materno": "Romero", "nombre": "Rosa",
+            "fecha_nacimiento": "1983-06-25", "sexo": "Femenino", "estado_civil": "Casado",
+            "tipo_documento": "DNI", "numero_documento": "88888888", "direccion": "Av. 8 #234",
+            "telefono": "888888888", "email": "rosa.vazquez@email.com", "ocupacion": "Arquitecta"
+        },
+        {
+            "apellido_paterno": "Castro", "apellido_materno": "Serrano", "nombre": "Sofia",
+            "fecha_nacimiento": "1992-02-14", "sexo": "Femenino", "estado_civil": "Soltero",
+            "tipo_documento": "DNI", "numero_documento": "99999999", "direccion": "Jr. 9 #567",
+            "telefono": "999999999", "email": "sofia.castro@email.com", "ocupacion": "Farmacéutica"
+        },
+        {
+            "apellido_paterno": "Ortega", "apellido_materno": "Iglesias", "nombre": "Teresa",
+            "fecha_nacimiento": "1976-08-11", "sexo": "Femenino", "estado_civil": "Casado",
+            "tipo_documento": "DNI", "numero_documento": "10101010", "direccion": "Calle 10 #890",
+            "telefono": "101010101", "email": "teresa.ortega@email.com", "ocupacion": "Veterinaria"
+        }
+    ]
+    
+    created_patients = []
+    for patient_data in sample_patients:
+        patient = Patient(**patient_data)
+        patient.edad = calculate_age(patient.fecha_nacimiento)
+        patient.ultima_consulta = datetime.now().strftime("%Y-%m-%d")
+        patient.persona_responsable = "Familiar responsable"
+        patient.alergias = "Ninguna conocida"
+        patient.intervenciones_quirurgicas = "Ninguna"
+        patient.vacunas_completas = "Si"
+        patient.antecedentes_familiares_cancer = "Sin antecedentes conocidos"
+        patient.fecha_ultimo_examen = "2024-01-01"
+        
+        patients_db[patient.numero_documento] = patient
+        created_patients.append(patient)
+    
+    return {"message": f"Se crearon {len(created_patients)} pacientes de prueba", "patients": created_patients}
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_breast_cancer(file: UploadFile = File(...)):
@@ -257,10 +505,14 @@ async def predict_breast_cancer(file: UploadFile = File(...)):
         prediction_label = "Cáncer de Mama (IDC Positivo)" if has_cancer else "No Cáncer (IDC Negativo)"
         confidence_percentage = float(prediction_proba * 100) if has_cancer else float((1 - prediction_proba) * 100)
         
+        # Determinar etapa de cáncer según umbral de confianza
+        etapa_cancer = get_cancer_stage(confidence_percentage, has_cancer) if has_cancer else None
+        
         print(f"✅ Predicción completada:")
         print(f"   - Has cancer: {has_cancer}")
         print(f"   - Label: {prediction_label}")
         print(f"   - Confidence: {confidence_percentage}%")
+        print(f"   - Etapa: {etapa_cancer if etapa_cancer else 'N/A'}")
 
         return PredictionResponse(
             filename=file.filename,
@@ -268,7 +520,8 @@ async def predict_breast_cancer(file: UploadFile = File(...)):
             prediction_label=prediction_label,
             has_cancer=has_cancer,
             confidence_percentage=confidence_percentage,
-            message="Predicción realizada con éxito."
+            message="Predicción realizada con éxito.",
+            etapa_cancer=etapa_cancer
         )
     except HTTPException as e:
         print(f"❌ HTTPException: {e.detail}")

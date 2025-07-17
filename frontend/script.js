@@ -1,26 +1,185 @@
 // Variables globales
 let currentPatient = null;
 let selectedFile = null;
+let authToken = null;
 
 // URL del backend
-const API_URL = 'https://app-ml-tesis-backend.onrender.com'; // ← URL real de Render
-// Función para buscar paciente
-async function searchPatient() {
-    const cedula = document.getElementById('cedula-input').value.trim();
+const API_URL = 'http://localhost:8000';
+
+// Authentication Functions
+function switchTab(tab) {
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const loginTab = document.querySelector('.tab-btn:first-child');
+    const registerTab = document.querySelector('.tab-btn:last-child');
+
+    if (tab === 'login') {
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+        loginTab.classList.add('active');
+        registerTab.classList.remove('active');
+    } else {
+        loginForm.classList.add('hidden');
+        registerForm.classList.remove('hidden');
+        loginTab.classList.remove('active');
+        registerTab.classList.add('active');
+    }
+}
+
+async function login(event) {
+    event.preventDefault();
     
-    if (!cedula) {
-        alert('Por favor ingrese un número de cédula');
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+
+    try {
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            authToken = data.access_token;
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('doctorName', username);
+            
+            showDashboard();
+            loadPatients();
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'Error al iniciar sesión');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al conectar con el servidor');
+    }
+}
+
+async function register(event) {
+    event.preventDefault();
+    
+    const username = document.getElementById('register-username').value;
+    const email = document.getElementById('register-email').value;
+    const full_name = document.getElementById('register-fullname').value;
+    const password = document.getElementById('register-password').value;
+
+    try {
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, email, full_name, password })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            authToken = data.access_token;
+            localStorage.setItem('authToken', authToken);
+            localStorage.setItem('doctorName', full_name);
+            
+            showDashboard();
+            loadPatients();
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'Error al registrar doctor');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al conectar con el servidor');
+    }
+}
+
+function logout() {
+    authToken = null;
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('doctorName');
+    showLogin();
+}
+
+function showLogin() {
+    document.getElementById('login-section').classList.remove('hidden');
+    document.getElementById('dashboard-section').classList.add('hidden');
+    document.getElementById('prediction-section').classList.add('hidden');
+}
+
+function showDashboard() {
+    document.getElementById('login-section').classList.add('hidden');
+    document.getElementById('dashboard-section').classList.remove('hidden');
+    document.getElementById('prediction-section').classList.add('hidden');
+    
+    const doctorName = localStorage.getItem('doctorName') || 'Doctor';
+    document.getElementById('doctor-name').textContent = `Dr. ${doctorName}`;
+}
+
+function showPredictionSection() {
+    document.getElementById('login-section').classList.add('hidden');
+    document.getElementById('dashboard-section').classList.add('hidden');
+    document.getElementById('prediction-section').classList.remove('hidden');
+}
+
+// Dashboard Functions
+async function loadPatients() {
+    try {
+        const response = await fetch(`${API_URL}/patients`);
+        
+        if (response.ok) {
+            const patients = await response.json();
+            displayPatientsTable(patients);
+        } else {
+            console.error('Error loading patients');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function displayPatientsTable(patients) {
+    const tbody = document.getElementById('patients-tbody');
+    
+    if (patients.length === 0) {
+        tbody.innerHTML = '<tr class="no-data"><td colspan="7">No hay pacientes registrados</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = patients.map(patient => {
+        const nombreCompleto = `${patient.nombre} ${patient.apellido_paterno} ${patient.apellido_materno}`;
+        return `
+            <tr>
+                <td>${nombreCompleto}</td>
+                <td>${patient.numero_documento}</td>
+                <td>${patient.edad || 'N/A'}</td>
+                <td>${patient.tipo_cancer || 'No determinado'}</td>
+                <td>${patient.etapa || 'N/A'}</td>
+                <td>${patient.ultima_consulta || 'N/A'}</td>
+                <td>
+                    <button onclick="selectPatientForPrediction('${patient.numero_documento}')" class="btn btn-sm btn-primary">
+                        Analizar
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function searchPatient() {
+    const numeroDocumento = document.getElementById('search-input').value.trim();
+    
+    if (!numeroDocumento) {
+        alert('Por favor ingrese un número de documento');
         return;
     }
 
     try {
-        const response = await fetch(`${API_URL}/patients/${cedula}`);
+        const response = await fetch(`${API_URL}/patients/${numeroDocumento}`);
         
         if (response.ok) {
             const patient = await response.json();
-            currentPatient = patient;
-            showPatientSection();
-            displayPatientInfo(patient);
+            selectPatientForPrediction(numeroDocumento);
         } else {
             alert('Paciente no encontrado');
         }
@@ -30,19 +189,20 @@ async function searchPatient() {
     }
 }
 
-// Función para crear paciente de muestra
-async function createSamplePatient() {
+async function selectPatientForPrediction(numeroDocumento) {
     try {
-        const response = await fetch(`${API_URL}/patients/sample`, {
-            method: 'POST'
-        });
+        const response = await fetch(`${API_URL}/patients/${numeroDocumento}`);
         
         if (response.ok) {
             const patient = await response.json();
-            document.getElementById('cedula-input').value = patient.cedula;
-            alert(`Paciente de muestra creado con cédula: ${patient.cedula}`);
+            currentPatient = patient;
+            showPredictionSection();
+            displayPatientInfo(patient);
+            
+            const nombreCompleto = `${patient.nombre} ${patient.apellido_paterno} ${patient.apellido_materno}`;
+            document.getElementById('current-patient-name').textContent = nombreCompleto;
         } else {
-            alert('Error al crear paciente de muestra');
+            alert('Error al cargar información del paciente');
         }
     } catch (error) {
         console.error('Error:', error);
@@ -50,86 +210,178 @@ async function createSamplePatient() {
     }
 }
 
-// Función para mostrar la sección del paciente
-function showPatientSection() {
-    document.getElementById('search-section').classList.add('hidden');
-    document.getElementById('patient-section').classList.remove('hidden');
+// Create Patient Modal Functions
+function showCreatePatientModal() {
+    document.getElementById('create-patient-modal').classList.remove('hidden');
 }
 
-// Función para mostrar información del paciente
+function hideCreatePatientModal() {
+    document.getElementById('create-patient-modal').classList.add('hidden');
+    document.getElementById('create-patient-form').reset();
+}
+
+async function createPatient(event) {
+    event.preventDefault();
+    
+    const formData = {
+        apellido_paterno: document.getElementById('apellido-paterno').value,
+        apellido_materno: document.getElementById('apellido-materno').value,
+        nombre: document.getElementById('nombre').value,
+        fecha_nacimiento: document.getElementById('fecha-nacimiento').value,
+        sexo: document.getElementById('sexo').value,
+        estado_civil: document.getElementById('estado-civil').value,
+        tipo_documento: document.getElementById('tipo-documento').value,
+        numero_documento: document.getElementById('numero-documento').value,
+        direccion: document.getElementById('direccion').value,
+        telefono: document.getElementById('telefono').value,
+        email: document.getElementById('email').value,
+        ocupacion: document.getElementById('ocupacion').value,
+        persona_responsable: document.getElementById('persona-responsable').value,
+        alergias: document.getElementById('alergias').value,
+        intervenciones_quirurgicas: document.getElementById('intervenciones-quirurgicas').value,
+        vacunas_completas: document.getElementById('vacunas-completas').value,
+        antecedentes_familiares_cancer: document.getElementById('antecedentes-familiares').value,
+        fecha_ultimo_examen: document.getElementById('fecha-ultimo-examen').value
+    };
+
+    try {
+        const response = await fetch(`${API_URL}/patients`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+        });
+
+        if (response.ok) {
+            const patient = await response.json();
+            hideCreatePatientModal();
+            loadPatients();
+            alert('Paciente creado exitosamente');
+        } else {
+            const error = await response.json();
+            alert(error.detail || 'Error al crear paciente');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al conectar con el servidor');
+    }
+}
+
+async function createSamplePatients() {
+    try {
+        const response = await fetch(`${API_URL}/api/createuserfordoctorgeneric`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            alert(result.message);
+            loadPatients();
+        } else {
+            alert('Error al crear pacientes de prueba');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al conectar con el servidor');
+    }
+}
+
+// Patient Info Display
 function displayPatientInfo(patient) {
     const patientInfo = document.getElementById('patient-info');
+    const nombreCompleto = `${patient.nombre} ${patient.apellido_paterno} ${patient.apellido_materno}`;
+    
     patientInfo.innerHTML = `
-        <div class="detail-item">
-            <div class="detail-label">Cédula:</div>
-            <div class="detail-value">${patient.cedula}</div>
+        <div class="patient-detail">
+            <label>Nombre Completo:</label>
+            <span>${nombreCompleto}</span>
         </div>
-        <div class="detail-item">
-            <div class="detail-label">Nombre:</div>
-            <div class="detail-value">${patient.nombre_completo}</div>
+        <div class="patient-detail">
+            <label>Documento:</label>
+            <span>${patient.tipo_documento}: ${patient.numero_documento}</span>
         </div>
-        <div class="detail-item">
-            <div class="detail-label">Edad:</div>
-            <div class="detail-value">${patient.edad} años</div>
+        <div class="patient-detail">
+            <label>Edad:</label>
+            <span>${patient.edad || 'N/A'} años</span>
         </div>
-        <div class="detail-item">
-            <div class="detail-label">Tipo Sangre:</div>
-            <div class="detail-value">${patient.tipo_sangre}</div>
+        <div class="patient-detail">
+            <label>Sexo:</label>
+            <span>${patient.sexo}</span>
         </div>
-        <div class="detail-item">
-            <div class="detail-label">Antecedentes:</div>
-            <div class="detail-value">
-                <textarea readonly rows="3">${patient.antecedentes}</textarea>
-            </div>
+        <div class="patient-detail">
+            <label>Fecha de Nacimiento:</label>
+            <span>${patient.fecha_nacimiento}</span>
+        </div>
+        <div class="patient-detail">
+            <label>Estado Civil:</label>
+            <span>${patient.estado_civil}</span>
+        </div>
+        <div class="patient-detail">
+            <label>Teléfono:</label>
+            <span>${patient.telefono || 'No especificado'}</span>
+        </div>
+        <div class="patient-detail">
+            <label>Email:</label>
+            <span>${patient.email || 'No especificado'}</span>
+        </div>
+        <div class="patient-detail">
+            <label>Ocupación:</label>
+            <span>${patient.ocupacion || 'No especificado'}</span>
+        </div>
+        <div class="patient-detail">
+            <label>Alergias:</label>
+            <span>${patient.alergias || 'Ninguna conocida'}</span>
+        </div>
+        <div class="patient-detail">
+            <label>Antecedentes Familiares:</label>
+            <span>${patient.antecedentes_familiares_cancer || 'Sin antecedentes conocidos'}</span>
+        </div>
+        <div class="patient-detail">
+            <label>Último Examen:</label>
+            <span>${patient.fecha_ultimo_examen || 'No especificado'}</span>
         </div>
     `;
 }
 
-// Función para manejar selección de archivo
+// Image and Prediction Functions
 function handleFileSelect(event) {
     const file = event.target.files[0];
-    
-    if (file) {
+    if (file && file.type.startsWith('image/')) {
         selectedFile = file;
         
-        // Mostrar vista previa
         const reader = new FileReader();
         reader.onload = function(e) {
             const imageContainer = document.getElementById('image-container');
-            imageContainer.innerHTML = `<img src="${e.target.result}" alt="Imagen seleccionada">`;
+            imageContainer.innerHTML = `
+                <img src="${e.target.result}" alt="Imagen seleccionada" style="max-width: 100%; max-height: 300px; border-radius: 8px;">
+            `;
         };
         reader.readAsDataURL(file);
         
-        // Habilitar botón de subir
         document.getElementById('upload-btn').disabled = false;
+    } else {
+        alert('Por favor seleccione un archivo de imagen válido');
     }
 }
 
-// Función para subir imagen y predecir
 async function uploadAndPredict() {
     if (!selectedFile) {
-        alert('Por favor seleccione una imagen');
+        alert('Por favor seleccione una imagen primero');
         return;
     }
 
-    // Mostrar loading
-    document.getElementById('loading').classList.remove('hidden');
-    
-    // Cambiar texto del botón
-    const uploadBtn = document.getElementById('upload-btn');
-    const originalText = uploadBtn.innerHTML;
-    uploadBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 11-6.219-8.56"/>
-        </svg>
-        Analizando...
-    `;
-    uploadBtn.disabled = true;
+    if (!currentPatient) {
+        alert('No hay paciente seleccionado');
+        return;
+    }
+
+    showLoading();
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
 
     try {
-        const formData = new FormData();
-        formData.append('file', selectedFile);
-
         const response = await fetch(`${API_URL}/predict`, {
             method: 'POST',
             body: formData
@@ -137,92 +389,83 @@ async function uploadAndPredict() {
 
         if (response.ok) {
             const result = await response.json();
-            displayPrediction(result);
+            hideLoading();
+            displayPredictionResult(result);
+            
+            // Update patient with cancer info if detected
+            if (result.has_cancer && result.etapa_cancer) {
+                updatePatientCancerInfo(result);
+            }
         } else {
-            alert('Error en la predicción');
+            hideLoading();
+            const error = await response.json();
+            alert(error.detail || 'Error en la predicción');
         }
     } catch (error) {
+        hideLoading();
         console.error('Error:', error);
         alert('Error al conectar con el servidor');
-    } finally {
-        // Ocultar loading
-        document.getElementById('loading').classList.add('hidden');
-        
-        // Restaurar botón
-        uploadBtn.innerHTML = originalText;
-        uploadBtn.disabled = false;
     }
 }
 
-// Función para mostrar predicción
-function displayPrediction(result) {
-    const predictionSection = document.getElementById('prediction-section');
+function displayPredictionResult(result) {
     const predictionResult = document.getElementById('prediction-result');
+    const resultClass = result.has_cancer ? 'positive' : 'negative';
     
-    const statusClass = result.has_cancer ? 'positive' : 'negative';
-    const icon = result.has_cancer ? 
-        `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>` :
-        `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="20,6 9,17 4,12"/>
-        </svg>`;
-    
-    const title = result.has_cancer ? 'Anomalía Detectada' : 'Resultado Normal';
-    const description = result.has_cancer ? 
-        'Se detectaron patrones que requieren evaluación médica adicional.' :
-        'No se detectaron anomalías significativas en la imagen.';
+    let etapaInfo = '';
+    if (result.has_cancer && result.etapa_cancer) {
+        etapaInfo = `
+            <div class="prediction-detail">
+                <label>Etapa del Cáncer:</label>
+                <span class="stage-${result.etapa_cancer.toLowerCase().replace(/\s+/g, '-')}">${result.etapa_cancer}</span>
+            </div>
+        `;
+    }
     
     predictionResult.innerHTML = `
-        <div class="result-status ${statusClass}">
-            <div class="result-icon">
-                ${icon}
+        <div class="prediction-card ${resultClass}">
+            <div class="prediction-header">
+                <h4>${result.prediction_label}</h4>
+                <div class="confidence">${result.confidence_percentage.toFixed(2)}% de confianza</div>
             </div>
-            <div class="result-content">
-                <h4>${title}</h4>
-                <p>${description}</p>
-                <div class="result-confidence">Confianza: ${result.confidence_percentage.toFixed(1)}%</div>
-            </div>
-        </div>
-        <div class="result-details">
-            <div class="result-detail">
-                <span class="result-detail-label">Archivo:</span>
-                <span class="result-detail-value">${result.filename}</span>
-            </div>
-            <div class="result-detail">
-                <span class="result-detail-label">Diagnóstico:</span>
-                <span class="result-detail-value">${result.prediction_label}</span>
-            </div>
-            <div class="result-detail">
-                <span class="result-detail-label">Probabilidad:</span>
-                <span class="result-detail-value">${(result.prediction_probability * 100).toFixed(2)}%</span>
+            <div class="prediction-details">
+                <div class="prediction-detail">
+                    <label>Archivo:</label>
+                    <span>${result.filename}</span>
+                </div>
+                <div class="prediction-detail">
+                    <label>Probabilidad:</label>
+                    <span>${(result.prediction_probability * 100).toFixed(2)}%</span>
+                </div>
+                ${etapaInfo}
+                <div class="prediction-detail">
+                    <label>Mensaje:</label>
+                    <span>${result.message}</span>
+                </div>
             </div>
         </div>
     `;
     
-    predictionSection.classList.remove('hidden');
-    
-    // Scroll suave hacia el resultado
-    predictionSection.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
-    });
+    document.getElementById('results-section').classList.remove('hidden');
 }
 
-// Función para regresar
-function goBack() {
-    // Limpiar datos
-    currentPatient = null;
-    selectedFile = null;
-    document.getElementById('cedula-input').value = '';
-    document.getElementById('file-input').value = '';
-    document.getElementById('upload-btn').disabled = true;
+async function updatePatientCancerInfo(result) {
+    // This would typically update the patient record in the database
+    // For now, we'll just update the local patient object
+    if (currentPatient) {
+        currentPatient.tipo_cancer = "Cáncer de Mama";
+        currentPatient.etapa = result.etapa_cancer;
+        currentPatient.ultima_consulta = new Date().toISOString().split('T')[0];
+    }
+}
+
+// Navigation Functions
+function goBackToDashboard() {
+    showDashboard();
+    loadPatients();
     
-    // Limpiar imagen
-    const imageContainer = document.getElementById('image-container');
-    imageContainer.innerHTML = `
+    // Reset prediction section
+    document.getElementById('image-container').innerHTML = `
         <div class="image-placeholder">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
@@ -232,22 +475,46 @@ function goBack() {
             <p>Seleccionar imagen</p>
         </div>
     `;
-    
-    // Ocultar predicción
-    document.getElementById('prediction-section').classList.add('hidden');
-    
-    // Cambiar secciones
-    document.getElementById('patient-section').classList.add('hidden');
-    document.getElementById('search-section').classList.remove('hidden');
+    document.getElementById('results-section').classList.add('hidden');
+    document.getElementById('upload-btn').disabled = true;
+    selectedFile = null;
+    currentPatient = null;
 }
 
-// Event listener para Enter en el input de cédula
-document.getElementById('cedula-input').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        searchPatient();
-    }
-});
+// Utility Functions
+function showLoading() {
+    document.getElementById('loading').classList.remove('hidden');
+}
 
-// Mensaje de bienvenida
-console.log('🏥 Sistema de Diagnóstico de Cáncer de Mama - Frontend cargado correctamente');
-console.log('📡 Conectando con backend en:', API_URL);
+function hideLoading() {
+    document.getElementById('loading').classList.add('hidden');
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if user is already logged in
+    const token = localStorage.getItem('authToken');
+    if (token) {
+        authToken = token;
+        showDashboard();
+        loadPatients();
+    } else {
+        showLogin();
+    }
+
+    // Login form event listener
+    document.getElementById('login-form').addEventListener('submit', login);
+    
+    // Register form event listener
+    document.getElementById('register-form').addEventListener('submit', register);
+    
+    // Create patient form event listener
+    document.getElementById('create-patient-form').addEventListener('submit', createPatient);
+    
+    // Search input enter key listener
+    document.getElementById('search-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchPatient();
+        }
+    });
+});

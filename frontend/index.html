@@ -9,54 +9,295 @@
 </head>
 <body>
     <div class="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                    </svg>
-                    <h1>Sistema de Diagnóstico</h1>
-                </div>
-                <div class="header-subtitle">Análisis de Cáncer de Mama</div>
-            </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="main">
-            <!-- Search Section -->
-            <section id="search-section" class="search-section">
-                <div class="card">
-                    <div class="card-header">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"/>
-                            <path d="m21 21-4.35-4.35"/>
+        <!-- Login Section -->
+        <section id="login-section" class="login-section">
+            <div class="login-container">
+                <div class="login-card">
+                    <div class="login-header">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                         </svg>
-                        <h2>Búsqueda de Paciente</h2>
+                        <h1>Sistema de Diagnóstico</h1>
+                        <p>Análisis de Cáncer de Mama - Solo para Doctores</p>
                     </div>
-                    <div class="card-content">
-                        <div class="input-group">
-                            <input type="text" id="cedula-input" placeholder="Número de cédula" maxlength="20">
-                            <button onclick="searchPatient()" class="btn btn-primary">
+                    
+                    <div class="login-tabs">
+                        <button class="tab-btn active" onclick="switchTab('login')">Iniciar Sesión</button>
+                        <button class="tab-btn" onclick="switchTab('register')">Registrarse</button>
+                    </div>
+                    
+                    <!-- Login Form -->
+                    <form id="login-form" class="login-form">
+                        <div class="form-group">
+                            <label for="login-username">Usuario</label>
+                            <input type="text" id="login-username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="login-password">Contraseña</label>
+                            <input type="password" id="login-password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+                    </form>
+                    
+                    <!-- Register Form -->
+                    <form id="register-form" class="login-form hidden">
+                        <div class="form-group">
+                            <label for="register-username">Usuario</label>
+                            <input type="text" id="register-username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-email">Email</label>
+                            <input type="email" id="register-email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-fullname">Nombre Completo</label>
+                            <input type="text" id="register-fullname" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="register-password">Contraseña</label>
+                            <input type="password" id="register-password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Registrarse</button>
+                    </form>
+                    
+                    <div class="demo-info">
+                        <p><strong>Demo:</strong> Usuario: admin | Contraseña: admin123</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Section -->
+        <section id="dashboard-section" class="dashboard-section hidden">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-content">
+                    <div class="logo">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        <h1>Dashboard del Doctor</h1>
+                    </div>
+                    <div class="header-actions">
+                        <span id="doctor-name">Dr. Usuario</span>
+                        <button onclick="logout()" class="btn btn-outline">Cerrar Sesión</button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Dashboard Content -->
+            <main class="main">
+                <div class="dashboard-grid">
+                    <!-- Search and Actions Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="m21 21-4.35-4.35"/>
+                            </svg>
+                            <h2>Búsqueda de Paciente</h2>
+                        </div>
+                        <div class="card-content">
+                            <div class="input-group">
+                                <input type="text" id="search-input" placeholder="Número de documento" maxlength="20">
+                                <button onclick="searchPatient()" class="btn btn-primary">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="11" cy="11" r="8"/>
+                                        <path d="m21 21-4.35-4.35"/>
+                                    </svg>
+                                    Buscar
+                                </button>
+                            </div>
+                            <div class="dashboard-actions">
+                                <button onclick="showCreatePatientModal()" class="btn btn-secondary">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 5v14M5 12h14"/>
+                                    </svg>
+                                    Crear Paciente
+                                </button>
+                                <button onclick="createSamplePatients()" class="btn btn-outline">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M20 6 9 17l-5-5"/>
+                                    </svg>
+                                    Crear Datos de Prueba
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Patients Table Card -->
+                    <div class="card patients-table-card">
+                        <div class="card-header">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <h2>Lista de Pacientes</h2>
+                            <button onclick="loadPatients()" class="btn btn-outline btn-sm">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="11" cy="11" r="8"/>
-                                    <path d="m21 21-4.35-4.35"/>
+                                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                                    <path d="M21 3v5h-5"/>
+                                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                                    <path d="M8 16H3v5"/>
                                 </svg>
-                                Buscar
+                                Actualizar
                             </button>
                         </div>
-                        <button onclick="createSamplePatient()" class="btn btn-secondary">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M20 6 9 17l-5-5"/>
-                            </svg>
-                            Crear Paciente de Muestra
-                        </button>
+                        <div class="card-content">
+                            <div class="table-container">
+                                <table id="patients-table" class="patients-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre Completo</th>
+                                            <th>Cédula</th>
+                                            <th>Edad</th>
+                                            <th>Tipo Cáncer</th>
+                                            <th>Etapa</th>
+                                            <th>Última Consulta</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="patients-tbody">
+                                        <tr class="no-data">
+                                            <td colspan="7">No hay pacientes registrados</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </section>
+            </main>
+        </section>
 
-            <!-- Patient Section -->
-            <section id="patient-section" class="patient-section hidden">
+        <!-- Create Patient Modal -->
+        <div id="create-patient-modal" class="modal hidden">
+            <div class="modal-overlay" onclick="hideCreatePatientModal()"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Crear Nuevo Paciente</h3>
+                    <button onclick="hideCreatePatientModal()" class="modal-close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+                <form id="create-patient-form" class="patient-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="apellido-paterno">Apellido Paterno *</label>
+                            <input type="text" id="apellido-paterno" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="apellido-materno">Apellido Materno *</label>
+                            <input type="text" id="apellido-materno" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="nombre">Nombre *</label>
+                            <input type="text" id="nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="fecha-nacimiento">Fecha de Nacimiento *</label>
+                            <input type="date" id="fecha-nacimiento" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="sexo">Sexo</label>
+                            <select id="sexo">
+                                <option value="Femenino">Femenino</option>
+                                <option value="Masculino">Masculino</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="estado-civil">Estado Civil</label>
+                            <select id="estado-civil">
+                                <option value="Soltero">Soltero</option>
+                                <option value="Casado">Casado</option>
+                                <option value="Divorciado">Divorciado</option>
+                                <option value="Viudo">Viudo</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="tipo-documento">Tipo Documento</label>
+                            <select id="tipo-documento">
+                                <option value="DNI">DNI</option>
+                                <option value="Pasaporte">Pasaporte</option>
+                                <option value="Carnet">Carnet</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="numero-documento">Número Documento *</label>
+                            <input type="text" id="numero-documento" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="direccion">Dirección</label>
+                            <input type="text" id="direccion">
+                        </div>
+                        <div class="form-group">
+                            <label for="telefono">Teléfono</label>
+                            <input type="text" id="telefono">
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email">
+                        </div>
+                        <div class="form-group">
+                            <label for="ocupacion">Ocupación</label>
+                            <input type="text" id="ocupacion">
+                        </div>
+                        <div class="form-group">
+                            <label for="persona-responsable">Persona Responsable</label>
+                            <input type="text" id="persona-responsable">
+                        </div>
+                        <div class="form-group">
+                            <label for="alergias">Alergias</label>
+                            <input type="text" id="alergias">
+                        </div>
+                        <div class="form-group">
+                            <label for="intervenciones-quirurgicas">Intervenciones Quirúrgicas</label>
+                            <input type="text" id="intervenciones-quirurgicas">
+                        </div>
+                        <div class="form-group">
+                            <label for="vacunas-completas">Vacunas Completas</label>
+                            <select id="vacunas-completas">
+                                <option value="Si">Si</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group form-group-full">
+                            <label for="antecedentes-familiares">Antecedentes Familiares de Cáncer</label>
+                            <textarea id="antecedentes-familiares" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="fecha-ultimo-examen">Fecha de Último Examen Médico</label>
+                            <input type="date" id="fecha-ultimo-examen">
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" onclick="hideCreatePatientModal()" class="btn btn-outline">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar Paciente</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Prediction Section -->
+        <section id="prediction-section" class="prediction-section hidden">
+            <header class="header">
+                <div class="header-content">
+                    <div class="logo">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        <h1>Análisis de Imagen - <span id="current-patient-name">Paciente</span></h1>
+                    </div>
+                    <div class="header-actions">
+                        <button onclick="goBackToDashboard()" class="btn btn-outline">Volver al Dashboard</button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main">
                 <div class="patient-grid">
                     <!-- Image Panel -->
                     <div class="card">
@@ -121,7 +362,7 @@
                 </div>
 
                 <!-- Results Section -->
-                <div id="prediction-section" class="results-section hidden">
+                <div id="results-section" class="results-section hidden">
                     <div class="card">
                         <div class="card-header">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -139,17 +380,8 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="actions">
-                    <button onclick="goBack()" class="btn btn-outline">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="m12 19-7-7 7-7"/>
-                            <path d="M19 12H5"/>
-                        </svg>
-                        Nueva Consulta
-                    </button>
-                </div>
-            </section>
+            </main>
+        </section>
         </main>
 
         <!-- Loading Overlay -->
