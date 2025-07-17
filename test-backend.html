@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Backend Connection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        }
+
+        .container {
+            min-height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #1e293b;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.875rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 1rem;
+        }
+
+        .btn:hover {
+            background: #1d4ed8;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-outline {
+            background: white;
+            color: #2563eb;
+            border: 2px solid #2563eb;
+        }
+
+        .btn-outline:hover {
+            background: #f8fafc;
+        }
+
+        .result {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .result.success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+        }
+
+        .result.error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+        }
+
+        .result.info {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .status-indicator.connected {
+            background: #22c55e;
+        }
+
+        .status-indicator.connecting {
+            background: #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>Sistema de Diagnóstico - Test Backend</h1>
+                <p>Prueba la conectividad con el backend</p>
+            </div>
+
+            <div class="status">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Desconectado</span>
+            </div>
+
+            <button onclick="testConnection()" class="btn" id="testBtn">
+                Probar Conexión
+            </button>
+
+            <div class="form-group">
+                <label for="username">Usuario de Prueba:</label>
+                <input type="text" id="username" value="admin" placeholder="Ingresa tu usuario">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Contraseña:</label>
+                <input type="password" id="password" value="admin123" placeholder="Ingresa tu contraseña">
+            </div>
+
+            <button onclick="testLogin()" class="btn" id="loginBtn">
+                Probar Login
+            </button>
+
+            <button onclick="testPatients()" class="btn btn-outline" id="patientsBtn">
+                Probar Obtener Pacientes
+            </button>
+
+            <div id="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://app-ml-tesis-backend.onrender.com';
+        let authToken = '';
+
+        function updateStatus(status, text) {
+            const indicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            indicator.className = `status-indicator ${status}`;
+            statusText.textContent = text;
+        }
+
+        function showResult(message, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+
+        function showLoading(buttonId) {
+            const btn = document.getElementById(buttonId);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Cargando...';
+        }
+
+        function hideLoading(buttonId, originalText) {
+            const btn = document.getElementById(buttonId);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+
+        async function testConnection() {
+            showLoading('testBtn');
+            updateStatus('connecting', 'Conectando...');
+            
+            try {
+                // Test if the backend is alive
+                const response = await fetch(`${API_URL}/`);
+                
+                if (response.ok) {
+                    updateStatus('connected', 'Conectado');
+                    showResult(`✅ Backend conectado exitosamente!<br>Status: ${response.status}<br>URL: ${API_URL}`, 'success');
+                } else {
+                    updateStatus('', 'Error de conexión');
+                    showResult(`❌ Error de conexión:<br>Status: ${response.status}<br>URL: ${API_URL}`, 'error');
+                }
+            } catch (error) {
+                updateStatus('', 'Error de red');
+                showResult(`❌ Error de red:<br>${error.message}<br>URL: ${API_URL}`, 'error');
+            } finally {
+                hideLoading('testBtn', 'Probar Conexión');
+            }
+        }
+
+        async function testLogin() {
+            showLoading('loginBtn');
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    localStorage.setItem('authToken', authToken);
+                    
+                    showResult(`✅ Login exitoso!<br>Token: ${authToken.substring(0, 20)}...`, 'success');
+                } else {
+                    const error = await response.json();
+                    showResult(`❌ Error de login:<br>${error.detail || 'Credenciales inválidas'}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Error de red en login:<br>${error.message}`, 'error');
+            } finally {
+                hideLoading('loginBtn', 'Probar Login');
+            }
+        }
+
+        async function testPatients() {
+            showLoading('patientsBtn');
+            
+            if (!authToken) {
+                authToken = localStorage.getItem('authToken');
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/patients`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const patients = await response.json();
+                    showResult(`✅ Pacientes obtenidos exitosamente!<br>Total: ${patients.length} pacientes`, 'success');
+                } else {
+                    const error = await response.json();
+                    showResult(`❌ Error al obtener pacientes:<br>${error.detail || 'Error desconocido'}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ Error de red al obtener pacientes:<br>${error.message}`, 'error');
+            } finally {
+                hideLoading('patientsBtn', 'Probar Obtener Pacientes');
+            }
+        }
+
+        // Auto-test connection on page load
+        window.onload = function() {
+            testConnection();
+        };
+    </script>
+</body>
+</html>
