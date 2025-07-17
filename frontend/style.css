@@ -33,10 +33,13 @@ body {
     color: var(--color-gray-900);
     line-height: 1.6;
     font-size: 14px;
+    width: 100%;
+    overflow-x: hidden;
 }
 
 .app {
     min-height: 100vh;
+    width: 100%;
     display: flex;
     flex-direction: column;
 }
@@ -50,7 +53,7 @@ body {
 }
 
 .header-content {
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     padding: 0 1.5rem;
     display: flex;
@@ -83,10 +86,11 @@ body {
 /* Main Content */
 .main {
     flex: 1;
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     padding: 2rem 1.5rem;
     width: 100%;
+    box-sizing: border-box;
 }
 
 /* Cards */
@@ -609,9 +613,10 @@ body {
     display: grid;
     grid-template-columns: 1fr;
     gap: 2rem;
-    max-width: 1200px;
+    max-width: 100%;
     margin: 0 auto;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .dashboard-actions {
