@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Patient } from '../services/api';
-import { patientAPI } from '../services/api';
-
+import { Patient, patientAPI } from '../services/api';
 
 interface DashboardProps {
   doctorName: string;
