@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import type { Patient, PredictionResult } from '../services/api';
-import { predictionAPI } from '../services/api';
+import { Patient, PredictionResult, predictionAPI } from '../services/api';
 
 interface PredictionProps {
   patient: Patient;
