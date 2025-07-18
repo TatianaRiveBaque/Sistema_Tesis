@@ -702,6 +702,113 @@ body {
   margin-bottom: 1rem;
 }
 
+/* Tab system styles */
+.tabs-container {
+  border-bottom: 1px solid var(--color-gray-200);
+  margin-bottom: 1.5rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 0.875rem 1.5rem;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  color: var(--color-gray-500);
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.tab:hover {
+  color: var(--color-gray-700);
+  background: var(--color-gray-50);
+}
+
+.tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+
+.tab-content {
+  min-height: 400px;
+}
+
+/* Action buttons for table */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: white;
+  border: 1px solid var(--color-danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.list-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.samples-content {
+  text-align: center;
+  padding: 2rem;
+}
+
+.info-box {
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--border-radius);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.info-box h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--color-gray-900);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.info-box p {
+  margin: 0;
+  color: var(--color-gray-600);
+}
+
+/* Form grid for tabs */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 /* Responsive design for new components */
 @media (max-width: 768px) {
   .dashboard-actions {
@@ -722,5 +829,23 @@ body {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
+  }
+
+  .tabs {
+    flex-direction: column;
+  }
+
+  .tab {
+    border-bottom: none;
+    border-left: 3px solid transparent;
+  }
+
+  .tab.active {
+    border-bottom: none;
+    border-left-color: var(--color-primary);
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
   }
 }
