@@ -85,7 +85,7 @@ const Prediction: React.FC<PredictionProps> = ({ patient, onBack }) => {
               <div className="image-upload">
                 <div className="image-container">
                   {imagePreview ? (
-                    <img src={imagePreview} alt="Imagen seleccionada" style={{maxWidth: '100%', maxHeight: '300px', borderRadius: '8px'}} />
+                    <img src={imagePreview} alt="Imagen seleccionada" style={{width: '100%', height: '100%', objectFit: 'contain', borderRadius: '8px'}} />
                   ) : (
                     <div className="image-placeholder">
                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
@@ -127,6 +127,56 @@ const Prediction: React.FC<PredictionProps> = ({ patient, onBack }) => {
                   </button>
                 </div>
               </div>
+              
+              {error && (
+                <div className="error" style={{marginTop: '1rem'}}>
+                  {error}
+                </div>
+              )}
+
+              {prediction && (
+                <div style={{marginTop: '1rem'}}>
+                  <div className="card-header">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 11H1l6-6 6 6"/>
+                      <path d="M9 17l3 3 3-3"/>
+                      <path d="M22 18.5c0 2.485 0 4.5-6 4.5s-6-2.015-6-4.5S10.515 14 16 14s6 2.015 6 4.5"/>
+                      <circle cx="16" cy="18.5" r="2.5"/>
+                    </svg>
+                    <h3>Resultado del Análisis</h3>
+                  </div>
+                  <div className="card-content">
+                    <div className={`prediction-card ${prediction.has_cancer ? 'positive' : 'negative'}`}>
+                      <div className="prediction-header">
+                        <h4>{prediction.prediction_label}</h4>
+                        <div className="confidence">
+                          {prediction.confidence_percentage.toFixed(2)}% de confianza
+                        </div>
+                      </div>
+                      <div className="prediction-details">
+                        <div className="prediction-detail">
+                          <label>Archivo:</label>
+                          <span>{prediction.filename}</span>
+                        </div>
+                        <div className="prediction-detail">
+                          <label>Probabilidad:</label>
+                          <span>{(prediction.prediction_probability * 100).toFixed(2)}%</span>
+                        </div>
+                        {prediction.has_cancer && prediction.etapa_cancer && (
+                          <div className="prediction-detail">
+                            <label>Etapa del Cáncer:</label>
+                            <span>{prediction.etapa_cancer}</span>
+                          </div>
+                        )}
+                        <div className="prediction-detail">
+                          <label>Mensaje:</label>
+                          <span>{prediction.message}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -193,55 +243,6 @@ const Prediction: React.FC<PredictionProps> = ({ patient, onBack }) => {
           </div>
         </div>
 
-        {error && (
-          <div className="error">
-            {error}
-          </div>
-        )}
-
-        {prediction && (
-          <div className="card">
-            <div className="card-header">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 11H1l6-6 6 6"/>
-                <path d="M9 17l3 3 3-3"/>
-                <path d="M22 18.5c0 2.485 0 4.5-6 4.5s-6-2.015-6-4.5S10.515 14 16 14s6 2.015 6 4.5"/>
-                <circle cx="16" cy="18.5" r="2.5"/>
-              </svg>
-              <h3>Resultado del Análisis</h3>
-            </div>
-            <div className="card-content">
-              <div className={`prediction-card ${prediction.has_cancer ? 'positive' : 'negative'}`}>
-                <div className="prediction-header">
-                  <h4>{prediction.prediction_label}</h4>
-                  <div className="confidence">
-                    {prediction.confidence_percentage.toFixed(2)}% de confianza
-                  </div>
-                </div>
-                <div className="prediction-details">
-                  <div className="prediction-detail">
-                    <label>Archivo:</label>
-                    <span>{prediction.filename}</span>
-                  </div>
-                  <div className="prediction-detail">
-                    <label>Probabilidad:</label>
-                    <span>{(prediction.prediction_probability * 100).toFixed(2)}%</span>
-                  </div>
-                  {prediction.has_cancer && prediction.etapa_cancer && (
-                    <div className="prediction-detail">
-                      <label>Etapa del Cáncer:</label>
-                      <span>{prediction.etapa_cancer}</span>
-                    </div>
-                  )}
-                  <div className="prediction-detail">
-                    <label>Mensaje:</label>
-                    <span>{prediction.message}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
