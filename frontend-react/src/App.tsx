@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Prediction from './components/Prediction';
-import { Patient } from './services/api';
+import type { Patient } from './services/api'; // ← Cambiar esta línea
 
 type View = 'login' | 'dashboard' | 'prediction';
 
