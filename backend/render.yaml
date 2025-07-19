@@ -1,0 +1,11 @@
+# Render.com Configuration
+
+[build]
+command = "pip install -r requirements.txt"
+
+[serve]
+command = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+
+[env]
+PORT = "8000"
+PYTHON_VERSION = "3.9.16"
