@@ -2,8 +2,13 @@
 let currentPatient = null;
 let selectedFile = null;
 
-// URL del backend
-const API_URL = 'https://app-ml-tesis-backend.onrender.com'; // ← URL real de Render
+// Configuración automática de URL según entorno
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_URL = isLocalhost 
+    ? 'http://localhost:8000'  // Desarrollo local
+    : 'https://sistema-diagnostico-backend.onrender.com'; // Producción (actualiza con tu URL real)
+
+console.log('🌐 Conectando a API:', API_URL);
 // Función para buscar paciente
 async function searchPatient() {
     const cedula = document.getElementById('cedula-input').value.trim();

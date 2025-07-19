@@ -2,9 +2,39 @@
 
 Una aplicación web completa para el diagnóstico de cáncer de mama usando machine learning.
 
+## 🌐 DEMO EN VIVO
+
+- **Frontend Demo:** [https://sistema-cancer-frontend.netlify.app](https://sistema-cancer-frontend.netlify.app)
+- **API Backend:** [https://sistema-cancer-backend.onrender.com](https://sistema-cancer-backend.onrender.com)
+- **Documentación API:** [https://sistema-cancer-backend.onrender.com/docs](https://sistema-cancer-backend.onrender.com/docs)
+
+> ⚠️ **Actualiza estas URLs con las reales después del despliegue**
+
+## 🚀 Despliegue Rápido
+
+### Para Backend (Render):
+1. Fork este repositorio
+2. Ve a [render.com](https://render.com)
+3. Crea nuevo Web Service
+4. Conecta tu repo
+5. Configura:
+   ```
+   Build Command: pip install -r backend/requirements.txt
+   Start Command: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+   ```
+
+### Para Frontend (Netlify):
+1. Ve a [netlify.com](https://netlify.com)
+2. Conecta tu repo
+3. Configura:
+   ```
+   Publish directory: frontend
+   ```
+4. Deploy automático
+
 ## Características
 
-- **Frontend**: React + TypeScript + Vite
+- **Frontend**: HTML5 + CSS3 + JavaScript
 - **Backend**: FastAPI con modelo de ML de TensorFlow
 - **Contenedorizado**: Docker + Docker Compose
 - **Gestión de Pacientes**: CRUD completo de pacientes

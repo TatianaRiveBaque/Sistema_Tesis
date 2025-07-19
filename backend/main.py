@@ -1,9 +1,12 @@
 import os
 import base64
+import logging
+from datetime import datetime
 from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
+import re
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import numpy as np
@@ -11,12 +14,52 @@ from PIL import Image
 import io
 import json
 
+# Configurar logging profesional
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('sistema_diagnostico.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+from pydantic import BaseModel, validator
+import re
+
 class Patient(BaseModel):
     cedula: str
     nombre_completo: str
     edad: int
     tipo_sangre: str
     antecedentes: str = ""
+    
+    @validator('cedula')
+    def validate_cedula(cls, v):
+        # Validación para cédula ecuatoriana (10 dígitos)
+        if not re.match(r'^\d{10}$', v):
+            raise ValueError('La cédula debe tener exactamente 10 dígitos')
+        return v
+    
+    @validator('edad')
+    def validate_edad(cls, v):
+        if v < 0 or v > 120:
+            raise ValueError('La edad debe estar entre 0 y 120 años')
+        return v
+    
+    @validator('tipo_sangre')
+    def validate_tipo_sangre(cls, v):
+        tipos_validos = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+        if v not in tipos_validos:
+            raise ValueError(f'Tipo de sangre debe ser uno de: {", ".join(tipos_validos)}')
+        return v
+    
+    @validator('nombre_completo')
+    def validate_nombre(cls, v):
+        if len(v.strip()) < 2:
+            raise ValueError('El nombre debe tener al menos 2 caracteres')
+        return v.strip().title()
 
 class PredictionResponse(BaseModel):
     filename: str
@@ -25,6 +68,16 @@ class PredictionResponse(BaseModel):
     has_cancer: bool
     confidence_percentage: float
     message: str
+    timestamp: str
+    analysis_method: str  # "ML_Model" o "Image_Analysis"
+    recommendations: str
+    
+class DetailedAnalysis(BaseModel):
+    contrast_score: float
+    texture_score: float
+    color_variance_score: float
+    entropy_score: float
+    brightness_score: float
 
 app = FastAPI(
     title="API de Predicción de Cáncer de Mama",
@@ -34,7 +87,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173","https://app-ml-tesis-frontend.onrender.com"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://localhost:5173",
+        "https://app-ml-tesis-frontend.onrender.com",
+        "https://*.onrender.com",  # Para Render
+        "https://*.herokuapp.com",  # Para Heroku
+        "https://*.vercel.app",     # Para Vercel
+        "*"  # En producción, especifica dominios exactos
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,9 +108,11 @@ patients_db = {}
 # Basado en el `input_layer_3` con forma (None, 50, 50, 3) en tu notebook
 IMG_SIZE = 50
 
+# Configuración para producción
+PORT = int(os.getenv("PORT", 8000))
+
 # Carga el modelo una sola vez al iniciar la aplicación
-# Asegúrate de que 'tu_modelo.h5' esté en el mismo directorio que 'main.py'
-MODEL_PATH = 'ml/breast_cancer_detection_model_transfer.h5'
+MODEL_PATH = os.getenv("MODEL_PATH", 'ml/breast_cancer_detection_model_transfer.h5')
 
 try:
     print(f"Intentando cargar modelo desde: {MODEL_PATH}")
@@ -135,29 +198,86 @@ async def delete_patient(cedula: str):
 async def create_sample_patient():
     """Crea un paciente genérico de muestra"""
     sample_patient = Patient(
-        cedula="87654321",
+        cedula="0123456789",
         nombre_completo="Ana Pérez",
         edad=38,
         tipo_sangre="A+",
         antecedentes="Madre con historial de cáncer de mama"
     )
     patients_db[sample_patient.cedula] = sample_patient
+    logger.info(f"✅ Paciente de muestra creado: {sample_patient.cedula}")
     return sample_patient
+
+@app.get("/stats")
+async def get_system_stats():
+    """Obtiene estadísticas del sistema"""
+    return {
+        "total_patients": len(patients_db),
+        "model_loaded": model is not None,
+        "api_version": "1.0.0",
+        "supported_formats": ["JPG", "PNG", "JPEG"],
+        "max_file_size_mb": 10,
+        "image_size": f"{IMG_SIZE}x{IMG_SIZE}",
+        "system_status": "operational"
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "model_status": "loaded" if model is not None else "fallback_mode",
+        "environment": "production" if os.getenv("RENDER") else "development",
+        "port": PORT
+    }
+
+@app.get("/server-info")
+async def server_info():
+    """Información del servidor para debugging"""
+    return {
+        "host": os.getenv("RENDER_EXTERNAL_URL", "localhost"),
+        "port": PORT,
+        "model_path": MODEL_PATH,
+        "model_exists": os.path.exists(MODEL_PATH) if MODEL_PATH else False,
+        "environment_vars": {
+            "RENDER": os.getenv("RENDER"),
+            "PORT": os.getenv("PORT"),
+        }
+    }
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_breast_cancer(file: UploadFile = File(...)):
     """
     Realiza una predicción sobre una imagen de tejido mamario.
-
-    - **file**: La imagen en formato JPG o PNG para la predicción.
+    
+    Args:
+        file: La imagen en formato JPG o PNG para la predicción.
+    
+    Returns:
+        PredictionResponse: Resultado detallado del análisis
+        
+    Raises:
+        HTTPException: Si hay errores en el procesamiento
     """
+    logger.info(f"🔍 Iniciando predicción para archivo: {file.filename}")
+    
     if model is None:
-        print("⚠️ Modelo no disponible, usando predicción basada en características")
-        # No lanzar error, continuar con análisis de imagen
+        logger.warning("⚠️ Modelo ML no disponible, usando análisis de imagen avanzado")
 
     # Validar el tipo de archivo de imagen
     if not file.content_type.startswith("image/"):
+        logger.error(f"❌ Tipo de archivo inválido: {file.content_type}")
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen (JPG, PNG, etc.).")
+
+    # Validar tamaño del archivo (máximo 10MB)
+    file.file.seek(0, 2)  # Ir al final del archivo
+    file_size = file.file.tell()
+    file.file.seek(0)  # Volver al inicio
+    
+    if file_size > 10 * 1024 * 1024:  # 10MB
+        logger.error(f"❌ Archivo muy grande: {file_size} bytes")
+        raise HTTPException(status_code=400, detail="El archivo es demasiado grande (máximo 10MB)")
 
     try:
         print(f"🔍 Iniciando predicción para archivo: {file.filename}")
@@ -252,15 +372,20 @@ async def predict_breast_cancer(file: UploadFile = File(...)):
             print(f"   - Score de brillo: {brightness_score:.3f}")
             print(f"   - Probabilidad final: {prediction_proba:.3f}")
 
-        # Determinar la etiqueta de la predicción (basado en predict_single_image)
+        # Determinar la etiqueta de la predicción y recomendaciones
         has_cancer = prediction_proba > 0.5
         prediction_label = "Cáncer de Mama (IDC Positivo)" if has_cancer else "No Cáncer (IDC Negativo)"
         confidence_percentage = float(prediction_proba * 100) if has_cancer else float((1 - prediction_proba) * 100)
         
-        print(f"✅ Predicción completada:")
-        print(f"   - Has cancer: {has_cancer}")
-        print(f"   - Label: {prediction_label}")
-        print(f"   - Confidence: {confidence_percentage}%")
+        # Generar recomendaciones médicas
+        if has_cancer:
+            recommendations = "Se recomienda consulta inmediata con oncólogo y estudios complementarios."
+        else:
+            recommendations = "Continuar con controles médicos regulares según recomendación profesional."
+        
+        analysis_method = "ML_Model" if model is not None else "Image_Analysis"
+        
+        logger.info(f"✅ Predicción completada - Método: {analysis_method}, Resultado: {prediction_label}")
 
         return PredictionResponse(
             filename=file.filename,
@@ -268,14 +393,17 @@ async def predict_breast_cancer(file: UploadFile = File(...)):
             prediction_label=prediction_label,
             has_cancer=has_cancer,
             confidence_percentage=confidence_percentage,
-            message="Predicción realizada con éxito."
+            message="Predicción realizada con éxito.",
+            timestamp=datetime.now().isoformat(),
+            analysis_method=analysis_method,
+            recommendations=recommendations
         )
     except HTTPException as e:
-        print(f"❌ HTTPException: {e.detail}")
+        logger.error(f"❌ Error HTTP en predicción: {e.detail}")
         raise e
     except Exception as e:
-        print(f"❌ Error inesperado en predicción: {e}")
-        print(f"Tipo de error: {type(e).__name__}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error durante la predicción: {str(e)}")
+        logger.error(f"❌ Error inesperado en predicción: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error interno del servidor durante la predicción. Contacte al administrador."
+        )
